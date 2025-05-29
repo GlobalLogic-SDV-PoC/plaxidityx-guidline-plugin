@@ -38,7 +38,7 @@ runs:
   - name: Checkout self
     uses: actions/checkout@v3
     with:
-      repository: lukaszgosiewski/guidline
+      repository: csm-showcase/guidline_plugin
       token: ${{ inputs.TOKEN }}
       path: self
   - name: Set up Python
