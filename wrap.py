@@ -411,45 +411,70 @@ def run_codeql_analysis(c_path, script_path):
         if not os.path.exists(script_path):
             fatal_error(f"Shell script does not exist: {script_path}")
 
-        # Create database
-        logging.info("Creating CodeQL database...")
+        # Create database for C/C++ (using c-cpp language covers both)
+        logging.info("Creating CodeQL database for C/C++...")
         create_cmd = [
             codeql_path, "database", "create", "codeql_db", "--overwrite",
-            "--language=c",
+            "--language=c-cpp",  # Changed to c-cpp to support both C and C++
             f"--command={script_path}",
             "--source-root", c_path
         ]
         subprocess.run(create_cmd, check=True)
 
-
-        # Analyze database
-        logging.info("Analyzing database...")
+        # Analyze database with CERT C standards
+        logging.info("Analyzing database with CERT C standards...")
         analyze_cmd = [
             codeql_path, "database", "analyze",
             "--format=csv",
-            "--output=./output/results_cert.csv",
+            "--output=./output/results_cert_c.csv",
             "--download",
             "codeql_db",
             "codeql/cert-c-coding-standards@2.43.0",
-            # "codeql/cert-cpp-coding-standards@2.43.0",
         ]
         subprocess.run(analyze_cmd, check=True)
 
+        # Analyze database with CERT C++ standards
+        logging.info("Analyzing database with CERT C++ standards...")
         analyze_cmd = [
             codeql_path, "database", "analyze",
             "--format=csv",
-            "--output=./output/results_misra.csv",
+            "--output=./output/results_cert_cpp.csv",
             "--download",
             "codeql_db",
-            # "codeql/misra-cpp-coding-standards@2.43.0",
-            "codeql/misra-c-coding-standards@2.43.0",
+            "codeql/cert-cpp-coding-standards@2.43.0",
         ]
-
         subprocess.run(analyze_cmd, check=True)
 
+        # Analyze database with MISRA C standards
+        logging.info("Analyzing database with MISRA C standards...")
+        analyze_cmd = [
+            codeql_path, "database", "analyze",
+            "--format=csv",
+            "--output=./output/results_misra_c.csv",
+            "--download",
+            "codeql_db",
+            "codeql/misra-c-coding-standards@2.43.0",
+        ]
+        subprocess.run(analyze_cmd, check=True)
+
+        # Analyze database with MISRA C++ standards
+        logging.info("Analyzing database with MISRA C++ standards...")
+        analyze_cmd = [
+            codeql_path, "database", "analyze",
+            "--format=csv",
+            "--output=./output/results_misra_cpp.csv",
+            "--download",
+            "codeql_db",
+            "codeql/misra-cpp-coding-standards@2.43.0",
+        ]
+        subprocess.run(analyze_cmd, check=True)
+
+        # Merge all results
         files = {
-            "./output/results_cert.csv": "Cert-C",
-            "./output/results_misra.csv": "Misra"
+            "./output/results_cert_c.csv": "Cert-C",
+            "./output/results_cert_cpp.csv": "Cert-C",
+            "./output/results_misra_c.csv": "Misra-C",
+            "./output/results_misra_cpp.csv": "Misra-C"
         }
 
         merge_codeql_csvs(files, "./output/results.csv")
@@ -569,10 +594,6 @@ def main():
         else:
             endpoint = app_url
 
-        client.test_request()
-
-        for item in Path(output_path).iterdir():
-            print(item.absolute())
 
         token_response = client.get_token(auth_url, username, password, 'argus_api')
         if token_response:
@@ -581,10 +602,6 @@ def main():
         else:
             fatal_error("Failed to get authentication token. Cannot send project data.")
 
-        files = os.listdir(output_path)
-
-        for item in Path(output_path).iterdir():
-            print(item.absolute())
     except Exception as e:
         fatal_error(f"An unexpected error occurred: {str(e)}")
 
