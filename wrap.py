@@ -17,7 +17,6 @@ import csv
 import os
 import io
 
-
 def fatal_error(message):
     """
     Log an error message and exit the script with error code 1.
@@ -386,6 +385,7 @@ def check_os_and_codeql():
         # Verify CodeQL version
         try:
             version_output = subprocess.check_output([codeql_path, "version"],
+                                                   env=os.environ,
                                                    stderr=subprocess.STDOUT,
                                                    universal_newlines=True)
             logging.info(f"Found CodeQL CLI: {codeql_path}")
@@ -419,7 +419,7 @@ def run_codeql_analysis(c_path, script_path):
             f"--command={script_path}",
             "--source-root", c_path
         ]
-        subprocess.run(create_cmd, check=True)
+        subprocess.run(create_cmd, check=True, env=os.environ)
 
         # Analyze database with CERT C standards
         logging.info("Analyzing database with CERT C standards...")
@@ -431,7 +431,7 @@ def run_codeql_analysis(c_path, script_path):
             "codeql_db",
             "codeql/cert-c-coding-standards@2.43.0",
         ]
-        subprocess.run(analyze_cmd, check=True)
+        subprocess.run(analyze_cmd, check=True, env=os.environ)
 
         # Analyze database with CERT C++ standards
         logging.info("Analyzing database with CERT C++ standards...")
@@ -443,7 +443,7 @@ def run_codeql_analysis(c_path, script_path):
             "codeql_db",
             "codeql/cert-cpp-coding-standards@2.43.0",
         ]
-        subprocess.run(analyze_cmd, check=True)
+        subprocess.run(analyze_cmd, check=True, env=os.environ)
 
         # Analyze database with MISRA C standards
         logging.info("Analyzing database with MISRA C standards...")
@@ -455,7 +455,7 @@ def run_codeql_analysis(c_path, script_path):
             "codeql_db",
             "codeql/misra-c-coding-standards@2.43.0",
         ]
-        subprocess.run(analyze_cmd, check=True)
+        subprocess.run(analyze_cmd, check=True, env=os.environ)
 
         # Analyze database with MISRA C++ standards
         logging.info("Analyzing database with MISRA C++ standards...")
@@ -467,7 +467,7 @@ def run_codeql_analysis(c_path, script_path):
             "codeql_db",
             "codeql/misra-cpp-coding-standards@2.43.0",
         ]
-        subprocess.run(analyze_cmd, check=True)
+        subprocess.run(analyze_cmd, check=True, env=os.environ)
 
         # Merge all results
         files = {

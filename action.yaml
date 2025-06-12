@@ -1,6 +1,12 @@
 name: gv_demo_action
-
+description: Automated Vulnerabilities check powered by PlaxidityX Code Security Manager
 inputs:
+  CONTAINER_REGISTRY:
+    description: "Docker container registry (e.g., ghcr.io)"
+    required: true
+  CONTAINER:
+    description: "Docker container name (e.g., ubuntu:latest)"
+    required: true
   REPO_NAME:
     description: "Repository name (e.g., org/project)"
     required: true
@@ -29,40 +35,58 @@ inputs:
     description: "Password for authentication"
     required: true
   TOKEN:
-    description: GitHub token with access to this repo
+    description: "GitHub token with access to this repo"
     required: true
-
 runs:
   using: "composite"
   steps:
-  - name: Checkout self
-    uses: actions/checkout@v3
-    with:
-      repository: csm-showcase/guidline_plugin
-      token: ${{ inputs.TOKEN }}
-      path: self
-  - name: Set up Python
-    uses: actions/setup-python@v5
-    with:
-      python-version: '3.10'
+    - name: Checkout self
+      uses: actions/checkout@v4
+      with:
+        repository: GlobalLogic-SDV-PoC/plaxidityx-guidline-plugin
+        token: ${{ inputs.TOKEN }}
+        path: self
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+      with:
+        platforms: amd64
+    - name: Run in container
+      uses: addnab/docker-run-action@v3
+      with:
+        username: ${{ github.actor }}
+        password: ${{ inputs.TOKEN }}
+        registry: ${{ inputs.CONTAINER_REGISTRY }}
+        image: ${{ inputs.CONTAINER }}
+        options: -v ${{ github.workspace }}:/workspace --privileged
+        run: |
+          cd /workspace
+          apt -qq update && apt -qq install -y binfmt-support   \
+                                               wget             \
+                                               unzip            \
+                                               libmagic1        \
+                                               python3-pip
+          mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc/
+          python3 -m pip install --upgrade pip
+          python3 -m pip install requests python-magic libmagic
 
-  - name: Install dependencies
-    run: |
-      python -m pip install --upgrade pip
-      pip install requests python-magic
-    shell: pwsh
+          echo "Install latest QEMU"
+          mkdir -p /tmp/qemu
+          wget --no-verbose http://ports.ubuntu.com/pool/universe/q/qemu/qemu-user_9.2.1+ds-1ubuntu5_arm64.deb -O /tmp/qemu/qemu-user.deb
+          wget --no-verbose http://ports.ubuntu.com/pool/universe/q/qemu/qemu-user-binfmt_9.2.1+ds-1ubuntu5_arm64.deb -O /tmp/qemu/qemu-user-binfmt.deb
+          wget --no-verbose http://ports.ubuntu.com/pool/universe/q/qemu/qemu-user-static_9.2.1+ds-1ubuntu5_arm64.deb -O /tmp/qemu/qemu-user-static.deb
+          apt -qq install -y /tmp/qemu/*.deb
 
-  - name: Create output directory
-    run: mkdir -p output
-    shell: pwsh
+          echo "Install required amd64 libraries"
+          dpkg --add-architecture amd64
+          cp -a self/codeql/apt.amd64.list /etc/apt/sources.list.d/amd64.list
+          apt -qq update || apt -qq install -y libc6:amd64 libz1:amd64
 
-  - name: Run CodeQL Analysis
-    run: |
-      echo "Full current path:"
-      pwd
-      echo "All files with full paths:"
-      find "$(pwd)"
-      python self/wrap.py "$(realpath "${{ inputs.PATH_TO_CODE }}")" "$(realpath "${{ inputs.PATH_TO_BUILDING_SCRIPT }}")" "${{ inputs.REPO_NAME }}" "${{ inputs.BRANCH_NAME }}" "${{ inputs.COMMIT_HASH }}" "${{ inputs.AUTH_URL }}" "${{ inputs.APP_URL }}" "${{ inputs.USERNAME }}" "${{ inputs.PASSWORD }}"
-    shell: pwsh
-    env:
-      PYTHONUNBUFFERED: 1
+          systemctl restart systemd-binfmt
+
+          echo "Download CodeQL CLI: ~/.codeql/cl"
+          wget --no-verbose https://github.com/github/codeql-cli-binaries/releases/download/v2.22.0/codeql-linux64.zip -O /tmp/codeql.zip
+          mkdir -p ~/.codeql/cli && unzip -q /tmp/codeql.zip -d ~/.codeql/cli && rm -rf /tmp/codeql.zip
+
+          echo "Create output directory: ./output"
+          mkdir -p output
+          python3 self/wrap.py "$(realpath "${{ inputs.PATH_TO_CODE }}")" "$(realpath "${{ inputs.PATH_TO_BUILDING_SCRIPT }}")" "${{ inputs.REPO_NAME }}" "${{ inputs.BRANCH_NAME }}" "${{ inputs.COMMIT_HASH }}" "${{ inputs.AUTH_URL }}" "${{ inputs.APP_URL }}" "${{ inputs.USERNAME }}" "${{ inputs.PASSWORD }}"
